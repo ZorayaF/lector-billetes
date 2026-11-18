@@ -1,0 +1,69 @@
+# === Python, TensorFlow & Entorno Virtual ===
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.ipynb_checkpoints/
+saved_model/
+
+# === Datos Pesados y Datasets ===
+videos_crudos/
+cop_dataset/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.m4v
+# Ignorar imágenes sueltas de prueba en la raíz, pero permitir iconos/assets dentro de cop-app
+/*.jpg
+/*.jpeg
+/*.png
+
+# === Modelos Grandes de Entrenamiento Local ===
+*.keras
+*.h5
+*.tflite
+# NOTA: Si quieres que el modelo ONNX viaje en el repo para el build de Vite/Capacitor,
+# mantenemos comentada la línea de abajo:
+# *.onnx
+
+# === Node / React / Vite ===
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Capacitor, Android & iOS Builds ===
+**/android/app/build/
+**/android/build/
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/app/release/
+**/ios/App/build/
+**/ios/App/Pods/
+**/.idea/
+**/.gradle/
+*.apk
+*.aab
+*.dex
+# Seguridad: nunca subir llaves de firma de la app móvil
+*.jks
+*.keystore
+
+# === Variables de Entorno, IDEs y Sistema Operativo ===
+.env
+.env.local
+.env.*.local
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
