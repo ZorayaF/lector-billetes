@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef } from "react";
+import { TextToSpeech } from "@capacitor-community/text-to-speech";
 
 export function useSpeech() {
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const lastSpokenTextRef = useRef("");
   const lastSpokenTimeRef = useRef(0);
 
-  // Vibración háptica diferenciada
   const vibrate = useCallback((pattern = 60) => {
     if (navigator.vibrate) {
       navigator.vibrate(pattern);
@@ -13,8 +13,8 @@ export function useSpeech() {
   }, []);
 
   const speak = useCallback(
-    (text, force = false, debounceMs = 2500, vibrationPattern = 60) => {
-      if (!ttsEnabled || !("speechSynthesis" in window) || !text) return;
+    async (text, force = false, debounceMs = 2500, vibrationPattern = 60) => {
+      if (!ttsEnabled || !text) return;
 
       const now = Date.now();
       const isSameText = text === lastSpokenTextRef.current;
@@ -27,15 +27,30 @@ export function useSpeech() {
       lastSpokenTextRef.current = text;
       lastSpokenTimeRef.current = now;
 
-      // Vibración de confirmación
+      // Vibración de confirmación háptica
       vibrate(vibrationPattern);
 
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "es-CO";
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
+      try {
+        // Usar el plugin nativo de Capacitor (funciona al 100% en dispositivos reales)
+        await TextToSpeech.speak({
+          text: text,
+          lang: "es-CO",
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+          category: "ambient",
+        });
+      } catch (err) {
+        // Fallback por si se prueba en navegador web de escritorio común
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "es-CO";
+          window.speechSynthesis.speak(utterance);
+        } else {
+          console.error("Error en TTS nativo y web:", err);
+        }
+      }
     },
     [ttsEnabled, vibrate],
   );

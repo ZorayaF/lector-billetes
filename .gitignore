@@ -10,6 +10,7 @@ __pycache__/
 saved_model/
 
 # === Datos Pesados y Datasets ===
+fotos_para_etiquetar/
 videos_crudos/
 cop_dataset/
 *.mp4

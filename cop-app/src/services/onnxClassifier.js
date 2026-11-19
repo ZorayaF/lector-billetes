@@ -42,11 +42,17 @@ export async function runInference(videoElement, canvasElement) {
   const vw = videoElement.videoWidth || 640;
   const vh = videoElement.videoHeight || 480;
 
-  const size = Math.min(vw, vh);
-  const sx = (vw - size) / 2;
-  const sy = (vh - size) / 2;
+  // Letterbox: fondo negro + imagen completa centrada sin recortar
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 224, 224);
 
-  ctx.drawImage(videoElement, sx, sy, size, size, 0, 0, 224, 224);
+  const scale = Math.min(224 / vw, 224 / vh);
+  const drawW = vw * scale;
+  const drawH = vh * scale;
+  const offsetX = (224 - drawW) / 2;
+  const offsetY = (224 - drawH) / 2;
+
+  ctx.drawImage(videoElement, 0, 0, vw, vh, offsetX, offsetY, drawW, drawH);
   const { data } = ctx.getImageData(0, 0, 224, 224);
 
   const float32Data = new Float32Array(1 * 224 * 224 * 3);

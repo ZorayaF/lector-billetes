@@ -7,10 +7,8 @@ import { CameraBackground } from "./components/CameraBackground";
 
 export default function App() {
   const videoRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
   const touchStartYRef = useRef(0);
-  const touchStartTimeRef = useRef(0);
-  const longPressTimerRef = useRef(null);
-  const isLongPressRef = useRef(false);
 
   // 1. Voz y Linterna
   const { ttsEnabled, speak, toggleTts, vibrate } = useSpeech();
@@ -22,42 +20,72 @@ export default function App() {
   const currentInfo = BILL_CONFIG[detectedClass] || BILL_CONFIG.background;
   const isDetecting = detectedClass !== "background";
 
-  // 3. Gestos globales
+  const themeColors = {
+    "2k": { border: "#22d3ee", bg: "rgba(8, 145, 178, 0.25)", text: "#67e8f9" },
+    "5k": { border: "#d97706", bg: "rgba(180, 83, 9, 0.25)", text: "#fcd34d" },
+    "10k": {
+      border: "#e11d48",
+      bg: "rgba(190, 18, 60, 0.25)",
+      text: "#fda4af",
+    },
+    "20k": {
+      border: "#f97316",
+      bg: "rgba(194, 65, 12, 0.25)",
+      text: "#fdba74",
+    },
+    "50k": {
+      border: "#9333ea",
+      bg: "rgba(126, 34, 206, 0.25)",
+      text: "#e9d5ff",
+    },
+    "100k": {
+      border: "#059669",
+      bg: "rgba(4, 120, 87, 0.25)",
+      text: "#6ee7b7",
+    },
+    background: {
+      border: "#3f3f46",
+      bg: "rgba(10, 10, 10, 0.85)",
+      text: "#a1a1aa",
+    },
+  };
+
+  const activeTheme = themeColors[detectedClass] || themeColors.background;
+
+  // 3. Sistema de Gestos Simplificado y Robusto
   const handleTouchStart = (e) => {
     touchStartYRef.current = e.touches[0].clientY;
-    touchStartTimeRef.current = Date.now();
-    isLongPressRef.current = false;
-
-    longPressTimerRef.current = setTimeout(async () => {
-      isLongPressRef.current = true;
-      vibrate([100, 60, 100]);
-      const newState = await toggleTorch();
-      speak(newState ? "Linterna encendida" : "Linterna apagada", true);
-    }, 800);
   };
 
   const handleTouchEnd = (e) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-    }
-
-    if (isLongPressRef.current) return;
-
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
-    const duration = Date.now() - touchStartTimeRef.current;
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
 
-    if (Math.abs(deltaY) > 80) {
+    // A. Gesto de Deslizar (Swipe vertical > 70px) -> Alternar TTS
+    if (Math.abs(deltaY) > 70) {
       toggleTts();
       return;
     }
 
-    if (duration < 350) {
-      vibrate(40);
-      if (isDetecting) {
-        speak(currentInfo.name, true, 0, 50);
-      } else {
-        speak("Buscando billete...", true, 0, 30);
-      }
+    // B. Gesto de Doble Toque (< 300ms entre toques) -> Alternar Linterna
+    if (timeSinceLastTap < 300) {
+      lastTapTimeRef.current = 0; // Reset
+      vibrate([80, 40, 80]);
+      toggleTorch().then((newState) => {
+        speak(newState ? "Linterna encendida" : "Linterna apagada", true, 0, 0);
+      });
+      return;
+    }
+
+    // C. Toque Simple -> Repetir / Anunciar estado actual de inmediato (forzado)
+    lastTapTimeRef.current = now;
+    vibrate(40);
+
+    if (isDetecting) {
+      speak(currentInfo.name, true, 0, 40); // force = true para que repita sin restricciones de tiempo
+    } else {
+      speak("Buscando billete...", true, 0, 30);
     }
   };
 
@@ -73,9 +101,10 @@ export default function App() {
         height: "100vh",
         backgroundColor: "#000",
         overflow: "hidden",
+        touchAction: "manipulation",
       }}
     >
-      {/* 1. Cámara Aislada (Nunca se re-renderiza con la IA) */}
+      {/* 1. Cámara Aislada */}
       <CameraBackground
         videoRef={videoRef}
         onTorchReady={registerTorch}
@@ -89,7 +118,7 @@ export default function App() {
         style={{
           position: "absolute",
           inset: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          backgroundColor: "rgba(0, 0, 0, 0.60)",
           zIndex: 1,
           pointerEvents: "none",
         }}
@@ -117,10 +146,11 @@ export default function App() {
         >
           <span
             style={{
-              color: "#34d399",
+              color: activeTheme.border,
               fontWeight: "900",
               letterSpacing: "2px",
               fontSize: "1.2rem",
+              textShadow: "0 2px 4px rgba(0,0,0,0.8)",
             }}
           >
             COP LECTOR
@@ -131,7 +161,11 @@ export default function App() {
               gap: "15px",
               fontSize: "0.85rem",
               fontFamily: "monospace",
-              opacity: 0.8,
+              color: "#fff",
+              backgroundColor: "rgba(0,0,0,0.6)",
+              padding: "6px 12px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.1)",
             }}
           >
             <span>{hasTorch && torchActive ? "LUZ: ON" : "LUZ: OFF"}</span>
@@ -153,20 +187,22 @@ export default function App() {
             style={{
               width: "100%",
               maxWidth: "480px",
-              padding: "32px 20px",
-              backgroundColor: "rgba(10, 10, 10, 0.85)",
-              border: "2px solid #3f3f46",
-              borderRadius: "24px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+              padding: "36px 20px",
+              backgroundColor: activeTheme.bg,
+              border: `3px solid ${activeTheme.border}`,
+              borderRadius: "28px",
+              boxShadow: `0 0 30px ${activeTheme.border}40`,
+              backdropFilter: "blur(12px)",
+              transition: "all 0.3s ease-in-out",
             }}
           >
             <span
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.8rem",
                 fontWeight: "900",
                 letterSpacing: "2px",
                 textTransform: "uppercase",
-                color: "#a1a1aa",
+                color: activeTheme.text,
                 marginBottom: "12px",
                 display: "block",
               }}
@@ -176,11 +212,12 @@ export default function App() {
 
             <h1
               style={{
-                fontSize: "2.75rem",
+                fontSize: "2.85rem",
                 fontWeight: "900",
                 lineHeight: "1.1",
                 color: "#ffffff",
                 margin: "10px 0",
+                textShadow: "0 2px 8px rgba(0,0,0,0.6)",
               }}
             >
               {currentInfo.name}
@@ -206,8 +243,8 @@ export default function App() {
                     fontWeight: "bold",
                     backgroundColor:
                       label === detectedClass && isDetecting
-                        ? "#34d399"
-                        : "#18181b",
+                        ? activeTheme.border
+                        : "rgba(24, 24, 27, 0.8)",
                     color:
                       label === detectedClass && isDetecting
                         ? "#000000"
@@ -228,17 +265,17 @@ export default function App() {
         <footer style={{ padding: "20px", textAlign: "center" }}>
           <div
             style={{
-              backgroundColor: "rgba(24, 24, 27, 0.9)",
+              backgroundColor: "rgba(24, 24, 27, 0.85)",
               padding: "12px 18px",
               borderRadius: "16px",
-              border: "1px solid #27272a",
+              border: "1px solid rgba(255,255,255,0.1)",
               display: "inline-block",
               fontSize: "0.8rem",
               color: "#d4d4d8",
+              backdropFilter: "blur(8px)",
             }}
           >
-            Toca para repetir • Mantén presionado para linterna • Desliza para
-            silenciar
+            Toca para repetir • Doble toque para linterna • Desliza para voz
           </div>
         </footer>
       </div>

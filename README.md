@@ -30,7 +30,7 @@ lector-billetes/
 
 - División de datos: 80% Entrenamiento, 10% Validación, 10% Prueba (Semilla fija: 42).
 
-## Arquitectura del Modelo (train_cop.py):
+### Arquitectura del Modelo (train_cop.py):
 
 - Backbone: MobileNetV3Small preentrenado en ImageNet (include_top=False, pesos base congelados).
 
@@ -42,7 +42,7 @@ lector-billetes/
 
 - Hiperparámetros: Optimizador Adam (lr=1e-3), Batch Size 32, hasta 15 épocas con EarlyStopping (paciencia 4) y ReduceLROnPlateau (factor 0.5, paciencia 2).
 
-## Formatos de Salida:
+### Formatos de Salida:
 
 - .keras: Modelo completo con capas de preprocesamiento.
 
@@ -50,7 +50,7 @@ lector-billetes/
 
 - .onnx: Exportado con tf2onnx (opset=13) directamente en cop-app/public/cop_model.onnx.
 
-## Flujo de Ejecución (Pipeline)
+### Flujo de Ejecución (Pipeline)
 
 1. Preparar videos: Colocar los videos grabados en videos_crudos/<denominacion>/.
 

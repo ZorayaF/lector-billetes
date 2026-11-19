@@ -7,10 +7,11 @@ export function useBillScanner(videoRef, speak) {
   const [confidence, setConfidence] = useState(0);
   const [allScores, setAllScores] = useState({});
   const [modelReady, setModelReady] = useState(false);
-  const backgroundTimeRef = useRef(Date.now());
-  const guideAnnouncedRef = useRef(false);
 
-  // Canvas aislado 100% en memoria (fuera del DOM)
+  // Referencias para estabilidad (histéresis)
+  const historyRef = useRef([]);
+  const lastSpokenBillRef = useRef(null);
+  const backgroundCounterRef = useRef(0);
   const memoryCanvasRef = useRef(null);
 
   useEffect(() => {
@@ -48,32 +49,63 @@ export function useBillScanner(videoRef, speak) {
           if (isMounted) {
             setAllScores(result.allScores);
 
-            if (result.confidence > 0.65 && result.className !== "background") {
-              setDetectedClass(result.className);
-              setConfidence(result.confidence);
-              backgroundTimeRef.current = Date.now();
-              guideAnnouncedRef.current = false;
+            // 1. Filtrar por alta confianza (> 80%) y descartar background preliminar
+            const conf = result.confidence;
+            const rawClass = result.className;
 
-              const info = BILL_CONFIG[result.className];
-              if (info && speak) {
-                speak(info.name, false, 2500, 70);
+            // Agregamos al historial de las últimas 4 lecturas para evitar titubeos
+            historyRef.current.push({ className: rawClass, confidence: conf });
+            if (historyRef.current.length > 4) {
+              historyRef.current.shift();
+            }
+
+            // Votación: verificar si las últimas lecturas coinciden en la misma denominación
+            const validDeltas = historyRef.current.filter(
+              (h) => h.className !== "background" && h.confidence > 0.8,
+            );
+
+            // Buscamos si hay un ganador claro en el historial reciente
+            const counts = {};
+            validDeltas.forEach((item) => {
+              counts[item.className] = (counts[item.className] || 0) + 1;
+            });
+
+            let stableClass = "background";
+            let maxCount = 0;
+            for (const [cls, cnt] of Object.entries(counts)) {
+              if (cnt >= 3) {
+                // Al menos 3 de 4 lecturas deben coincidir
+                stableClass = cls;
+                maxCount = cnt;
+              }
+            }
+
+            if (stableClass !== "background") {
+              backgroundCounterRef.current = 0;
+              setDetectedClass(stableClass);
+              setConfidence(conf);
+
+              // Hablar SOLAMENTE si es un billete nuevo o si pasó un buen rato,
+              // evitando que hable constantemente encima de lo mismo
+              if (lastSpokenBillRef.current !== stableClass) {
+                lastSpokenBillRef.current = stableClass;
+                const info = BILL_CONFIG[stableClass];
+                if (info && speak) {
+                  speak(info.name, true, 4000, 100); // Fuerza lectura clara
+                }
               }
             } else {
-              setDetectedClass("background");
-              setConfidence(
-                result.allScores["background"] || result.confidence,
-              );
+              // Si no hay certeza, aumentamos contador de fondo
+              backgroundCounterRef.current += 1;
 
-              const elapsed = Date.now() - backgroundTimeRef.current;
-              if (elapsed > 6000 && !guideAnnouncedRef.current) {
-                guideAnnouncedRef.current = true;
-                if (speak) {
-                  speak(
-                    "Buscando billete. Mueva el billete frente a la cámara.",
-                    false,
-                    8000,
-                    0,
-                  );
+              // Solo cambiamos a background si lleva varios ciclos sin ver nada (evita parpadeo)
+              if (backgroundCounterRef.current >= 3) {
+                setDetectedClass("background");
+                setConfidence(result.allScores["background"] || conf);
+
+                // Permitimos que si vuelve a aparecer el mismo billete lo vuelva a anunciar después
+                if (backgroundCounterRef.current > 10) {
+                  lastSpokenBillRef.current = null;
                 }
               }
             }
@@ -83,9 +115,9 @@ export function useBillScanner(videoRef, speak) {
         }
       }
 
-      // 180 ms de descanso entre inferencias completadas (evita colapso de GPU y batería)
+      // Ciclo de muestreo cada 200 ms
       if (isMounted) {
-        timerId = setTimeout(processLoop, 180);
+        timerId = setTimeout(processLoop, 200);
       }
     }
 
